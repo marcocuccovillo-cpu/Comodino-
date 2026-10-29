@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Comodino</title>
+<meta name="theme-color" content="#0a0a09">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,300..600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: orologio a sinistra, meteo a destra in orizzontale; in verticale si impilano. Carta e-ink di giorno, inchiostro spento di notte. */
+:root{
+  --paper:#e8e5dc; --ink:#1d1c1a; --soft:#6b675e; --rule:#bdb8ab; --fill:#d6d2c6;
+  --serif:"Literata", "Iowan Old Style", Georgia, serif;
+  --mono:"IBM Plex Mono", ui-monospace, "Courier New", monospace;
+  color-scheme:light;
+}
+body.night{ --paper:#0a0a09; --ink:#8f897d; --soft:#56524a; --rule:#26241f; --fill:#1a1916; color-scheme:dark }
+body.night.red{ --ink:#8a3424; --soft:#5a2219; --rule:#2a110c; --fill:#1c0b08 }
+/* Pensata per telefono in orizzontale: tutto scala sull'altezza (vh), che è il lato corto. */
+html,body{height:100%;margin:0}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--paper);color:var(--ink);font-family:var(--serif);overflow:hidden;
+  -webkit-user-select:none;user-select:none;transition:background .6s,color .6s;-webkit-tap-highlight-color:transparent;
+  padding-left:max(4vw,env(safe-area-inset-left,0px));padding-right:max(4vw,env(safe-area-inset-right,0px))}
+body:not(.night){background-image:radial-gradient(rgba(0,0,0,.035) .6px,transparent .7px);background-size:3px 3px}
+.stage{height:100%;display:grid;grid-template-columns:1.12fr 1fr;gap:4.5vw;align-items:center;
+  padding-block:max(5vh,env(safe-area-inset-top,0px)) max(5vh,env(safe-area-inset-bottom,0px));transition:transform 1.5s}
+.mono{font-family:var(--mono);font-size:clamp(9px,2.7vh,12px);letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
+.clock-side{display:flex;flex-direction:column;gap:2.2vh;min-width:0}
+.date{font-size:clamp(14px,6vh,26px);font-style:italic;font-weight:350;text-transform:lowercase}
+.time{font-size:min(38vh,19vw);font-weight:300;line-height:.84;font-variant-numeric:tabular-nums lining-nums;
+  letter-spacing:-.04em;font-variation-settings:"opsz" 72;cursor:pointer;white-space:nowrap}
+.time .c{display:inline-block;transform:translateY(-.06em);margin:0 -.02em;color:var(--soft)}
+.alarm-line{display:flex;align-items:center;gap:1.2em;font-size:clamp(12px,4.4vh,18px);cursor:pointer;width:max-content;max-width:100%}
+.alarm-line svg{width:1.2em;height:1.2em;flex:none}
+.alarm-line.off{color:var(--soft)}
+.sunarc svg{height:20vh;width:auto;max-width:100%;display:block}
+.info-side{display:flex;flex-direction:column;gap:3vh;min-width:0;border-left:1px solid var(--rule);padding-left:4vw}
+.now{display:flex;align-items:center;gap:3vh}
+.now .ico{width:15vh;height:15vh;flex:none}
+.temp{font-size:min(19vh,10vw);font-weight:300;line-height:.95;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.desc{font-size:clamp(13px,4.6vh,19px);line-height:1.2}
+.facts{display:grid;grid-template-columns:repeat(4,auto);justify-content:space-between;column-gap:2vw;row-gap:.5vh}
+.facts b{font-weight:450;font-size:clamp(12px,4.4vh,18px);font-variant-numeric:tabular-nums;font-family:var(--serif);white-space:nowrap}
+.facts span{display:block}
+.chart svg{width:100%;height:23vh;display:block;overflow:visible}
+.foot{display:flex;align-items:center;gap:2vw}
+.moon{display:flex;align-items:center;gap:1.2vw}
+.moon svg{width:8vh;height:8vh}
+.moon .n{font-size:clamp(12px,3.8vh,15px)}
+.rotate{position:fixed;inset:0;z-index:50;background:var(--paper);display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:24px}
+.rotate svg{width:56px;height:56px}
+@media (orientation:portrait){.rotate{display:flex}}
+.spacer{flex:1}
+.gear{background:none;border:1px solid var(--rule);color:var(--soft);padding:1.6vh;border-radius:2px;cursor:pointer;display:grid;place-items:center;flex:none}
+.gear svg{width:max(18px,5.5vh);height:max(18px,5.5vh)}
+.moon .n,#meta{white-space:nowrap}
+#meta{overflow:hidden;text-overflow:ellipsis;min-width:0;text-align:right}
+.gear:focus-visible,.alarm-line:focus-visible,.time:focus-visible{outline:1px dashed var(--soft);outline-offset:4px}
+.hint{position:fixed;left:50%;top:calc(1.5vh + env(safe-area-inset-top,0px));transform:translateX(-50%);font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--soft);border:1px solid var(--rule);background:var(--paper);padding:6px 12px;white-space:nowrap}
+/* pannello impostazioni */
+.sheet{position:fixed;inset:0;background:var(--paper);z-index:20;overflow:auto;
+  padding:calc(20px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
+.sheet-in{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+.sheet h2{font-weight:400;font-size:28px;margin:0}
+.row{display:flex;flex-direction:column;gap:8px}
+.row label.mono{display:block}
+.inline{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+input,select{font:inherit;font-size:17px;color:var(--ink);background:transparent;border:0;border-bottom:1px solid var(--rule);padding:6px 2px;border-radius:0;min-width:0}
+input[type=time]{font-variant-numeric:tabular-nums;font-size:26px}
+.seg{display:flex;border:1px solid var(--rule)}
+.seg button{flex:1;background:none;border:0;font:inherit;font-size:14px;color:var(--soft);padding:9px 10px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+.btn{background:var(--ink);color:var(--paper);border:0;font:inherit;font-size:15px;padding:10px 16px;cursor:pointer;border-radius:2px}
+.btn.ghost{background:none;color:var(--ink);border:1px solid var(--rule)}
+.note{font-size:13px;color:var(--soft);line-height:1.5;margin:0}
+/* sveglia che suona */
+.ring{position:fixed;inset:0;z-index:30;background:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;text-align:center;padding:24px}
+.ring .t{font-size:clamp(90px,22vw,200px);font-weight:300;line-height:.9;font-variant-numeric:tabular-nums}
+.ring .acts{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.ring .btn{font-size:20px;padding:16px 28px}
+body.ringing .ring{animation:inv 2s steps(1) infinite}
+@keyframes inv{50%{filter:invert(1)}}
+.flash{position:fixed;inset:0;z-index:40;background:#000;pointer-events:none;opacity:0}
+.flash.go{animation:eink .7s steps(1)}
+@keyframes eink{0%{opacity:1;background:#000}35%{opacity:1;background:#fff}70%{opacity:1;background:#000}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.stage{transition:none}.flash.go,body.ringing .ring{animation:none}}
+</style>
+</head>
+<body>
+<main class="stage" id="stage">
+  <section class="clock-side">
+    <div class="date" id="date">giovedì 29 ottobre</div>
+    <div class="time" id="time" tabindex="0" title="Tocca per giorno / notte">15<span class="c">:</span>11</div>
+    <div class="alarm-line" id="alarmLine" tabindex="0" role="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="13" r="7"/><path d="M12 9v4l2.5 2M5 4 2.5 6.5M19 4l2.5 2.5"/></svg>
+      <span id="alarmText">Sveglia 07:00</span>
+    </div>
+    <div class="sunarc" id="sunarc"></div>
+  </section>
+
+  <section class="info-side">
+    <div class="now">
+      <svg class="ico" id="nowIco" viewBox="0 0 24 24"></svg>
+      <div>
+        <div class="temp" id="temp">--°</div>
+        <div class="desc" id="desc">Carico il meteo…</div>
+      </div>
+    </div>
+    <div class="facts">
+      <div><span class="mono">Min / Max</span><b id="fMinMax">–</b></div>
+      <div><span class="mono">Percepita</span><b id="fFeel">–</b></div>
+      <div><span class="mono">Pioggia</span><b id="fRain">–</b></div>
+      <div><span class="mono">Vento</span><b id="fWind">–</b></div>
+    </div>
+    <div class="chart" id="chart"></div>
+    <div class="foot">
+      <div class="moon"><svg id="moonSvg" viewBox="0 0 30 30"></svg>
+        <div><div class="n" id="moonName">–</div><div class="mono" id="moonPct">–</div></div></div>
+      <div class="spacer"></div>
+      <div class="mono" id="meta">–</div>
+      <button class="gear" id="gear" type="button" aria-label="Impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+    </div>
+  </section>
+</main>
+
+<div class="hint" id="hint" hidden>Tocca lo schermo per attivare il suono</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-in">
+    <div class="inline"><h2>Impostazioni</h2><div class="spacer"></div><button class="btn" id="close" type="button">Fatto</button></div>
+    <div class="row">
+      <label class="mono" for="alarmTime">Sveglia</label>
+      <div class="inline"><input type="time" id="alarmTime" value="07:00">
+        <div class="seg" id="alarmOn"><button type="button" data-v="1">Attiva</button><button type="button" data-v="0">Spenta</button></div></div>
+      <div class="seg" id="alarmDays"><button type="button" data-v="all">Tutti i giorni</button><button type="button" data-v="week">Lun–Ven</button></div>
+      <div class="inline"><button class="btn ghost" id="testAlarm" type="button">Prova il suono</button></div>
+      <p class="note">Lascia la pagina aperta e il telefono in carica: la sveglia suona solo finché lo schermo resta acceso su questa pagina.</p>
+    </div>
+    <div class="row">
+      <label class="mono" for="city">Città del meteo</label>
+      <div class="inline"><input id="city" type="text" value="Bologna" autocomplete="off" style="flex:1"><button class="btn ghost" id="findCity" type="button">Cerca</button></div>
+      <p class="note" id="cityNote">Dati da Open-Meteo, aggiornati ogni 30 minuti.</p>
+    </div>
+    <div class="row">
+      <span class="mono">Modalità notte</span>
+      <div class="seg" id="nightMode"><button type="button" data-v="auto">Col tramonto</button><button type="button" data-v="on">Sempre</button><button type="button" data-v="off">Mai</button></div>
+      <div class="seg" id="redMode"><button type="button" data-v="0">Notte grigia</button><button type="button" data-v="1">Notte rossa</button></div>
+      <p class="note">Il rosso disturba meno il sonno. Ogni ora lo schermo fa un “refresh” stile e-ink (solo di giorno) e il contenuto si sposta di pochi pixel per non stampare l'immagine sugli schermi OLED.</p>
+    </div>
+    <div class="row">
+      <span class="mono">Schermo</span>
+      <div class="inline"><button class="btn ghost" id="fs" type="button">Schermo intero</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="ring" id="ring" hidden>
+  <div class="mono">Buongiorno</div>
+  <div class="t" id="ringTime">07:00</div>
+  <div class="desc" id="ringWx"></div>
+  <div class="acts"><button class="btn ghost" id="snooze" type="button">Posticipa 9 min</button><button class="btn" id="stop" type="button">Spegni</button></div>
+</div>
+<div class="flash" id="flash"></div>
+<div class="rotate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><rect x="3" y="7" width="18" height="11" rx="2"/><path d="M8 3.5a8 8 0 0 1 9 1.5l1.5-1.5M18.5 3.5V6H16"/></svg>
+<div class="desc">Gira il telefono in orizzontale</div><div class="mono">Comodino è pensato per stare di lato</div></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const pad=n=>String(n).padStart(2,'0');
+const store={get(k,d){try{const v=localStorage.getItem('comodino.'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},
+  set(k,v){try{localStorage.setItem('comodino.'+k,JSON.stringify(v))}catch(e){}}};
+const S={alarm:store.get('alarm','07:00'),alarmOn:store.get('alarmOn',true),days:store.get('days','all'),
+  city:store.get('city',{name:'Bologna',lat:44.4949,lon:11.3426}),night:store.get('night','auto'),red:store.get('red',false)};
+let WX=null, sample=false, snoozeUntil=null, lastFired='', ringing=false, audio=null, ringTimer=null;
+
+/* ---------- icone ---------- */
+const CL='<path d="M7.5 18h9.5a3.7 3.7 0 0 0 .4-7.38A5.3 5.3 0 0 0 7.3 9.6 4.2 4.2 0 0 0 7.5 18z"/>';
+const ICO={
+ sun:'<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.3M12 19.2v2.3M2.5 12h2.3M19.2 12h2.3M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>',
+ moon:'<path d="M19.5 14.6A8 8 0 0 1 9.4 4.5a8 8 0 1 0 10.1 10.1z"/>',
+ partly:'<circle cx="8.5" cy="8.5" r="3"/><path d="M8.5 2.6v1.4M2.6 8.5h1.4M4.3 4.3l1 1M12.7 4.3l-1 1"/>'+'<path d="M9.5 19h8a3.2 3.2 0 0 0 .3-6.38 4.6 4.6 0 0 0-8.6-.9A3.7 3.7 0 0 0 9.5 19z"/>',
+ cloud:CL,
+ fog:'<path d="M4 9h16M3 13h18M5 17h14"/>',
+ drizzle:'<path d="M7.5 15h9.5a3.7 3.7 0 0 0 .4-7.38A5.3 5.3 0 0 0 7.3 6.6 4.2 4.2 0 0 0 7.5 15z"/><path d="M9 18.5v1M13 18.5v1M17 18.5v1"/>',
+ rain:'<path d="M7.5 15h9.5a3.7 3.7 0 0 0 .4-7.38A5.3 5.3 0 0 0 7.3 6.6 4.2 4.2 0 0 0 7.5 15z"/><path d="M9 17.5l-1 3M13 17.5l-1 3M17 17.5l-1 3"/>',
+ snow:'<path d="M7.5 15h9.5a3.7 3.7 0 0 0 .4-7.38A5.3 5.3 0 0 0 7.3 6.6 4.2 4.2 0 0 0 7.5 15z"/><circle cx="9" cy="18.5" r=".6"/><circle cx="13" cy="20" r=".6"/><circle cx="16.5" cy="18.5" r=".6"/>',
+ storm:'<path d="M7.5 15h9.5a3.7 3.7 0 0 0 .4-7.38A5.3 5.3 0 0 0 7.3 6.6 4.2 4.2 0 0 0 7.5 15z"/><path d="M12.5 15.5l-2 3.5h3l-2 3.5"/>'
+};
+function wmo(c,isNight){
+  if(c===0) return [isNight?'moon':'sun','Sereno'];
+  if(c===1) return [isNight?'moon':'partly','Quasi sereno'];
+  if(c===2) return ['partly','Parzialmente nuvoloso'];
+  if(c===3) return ['cloud','Coperto'];
+  if(c===45||c===48) return ['fog','Nebbia'];
+  if(c>=51&&c<=57) return ['drizzle','Pioviggine'];
+  if(c>=61&&c<=67) return ['rain',c>=65?'Pioggia forte':'Pioggia'];
+  if(c>=71&&c<=77) return ['snow','Neve'];
+  if(c>=80&&c<=82) return ['rain','Rovesci'];
+  if(c===85||c===86) return ['snow','Rovesci di neve'];
+  if(c>=95) return ['storm','Temporale'];
+  return ['cloud','—'];
+}
+const icoSvg=k=>`<g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${ICO[k]}</g>`;
+
+/* ---------- meteo ---------- */
+function sampleData(){
+  const now=new Date(); now.setMinutes(0,0,0);
+  const base=new Date(now); base.setHours(0);
+  const time=[],temperature_2m=[],precipitation_probability=[],weather_code=[];
+  for(let i=0;i<48;i++){const t=new Date(base.getTime()+i*36e5);time.push(t.toISOString().slice(0,13)+':00');
+    const h=i%24;temperature_2m.push(+(11+5*Math.sin((h-9)/24*2*Math.PI)).toFixed(1));
+    precipitation_probability.push(h>=17&&h<=22?[20,35,55,60,40,25][h-17]:5);weather_code.push(h>=18&&h<=21?61:2)}
+  const d=now.toISOString().slice(0,10);
+  return {current:{temperature_2m:12.4,apparent_temperature:10.9,weather_code:2,wind_speed_10m:9,is_day:1},
+    hourly:{time,temperature_2m,precipitation_probability,weather_code},
+    daily:{temperature_2m_max:[16],temperature_2m_min:[7],sunrise:[d+'T06:51'],sunset:[d+'T17:13'],precipitation_probability_max:[60]},_local:true};
+}
+async function loadWeather(){
+  const {lat,lon}=S.city;
+  const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,is_day&hourly=temperature_2m,precipitation_probability,weather_code&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max&timezone=auto&forecast_days=2`;
+  try{const r=await fetch(url);if(!r.ok)throw 0;WX=await r.json();sample=false;WX._at=new Date()}
+  catch(e){WX=sampleData();sample=true;WX._at=new Date()}
+  renderWeather();
+}
+function parseLocal(s){const [d,t]=s.split('T');const [y,m,dd]=d.split('-').map(Number);const [h,mi]=(t||'0:0').split(':').map(Number);return new Date(y,m-1,dd,h,mi)}
+function isNightNow(){
+  if(S.night==='on')return true; if(S.night==='off')return false;
+  const now=new Date();
+  if(WX){const sr=parseLocal(WX.daily.sunrise[0]),ss=parseLocal(WX.daily.sunset[0]);return now<sr||now>ss}
+  const h=now.getHours();return h<7||h>=19;
+}
+function renderWeather(){
+  if(!WX)return;
+  const c=WX.current, night=c.is_day===0;
+  const [k,label]=wmo(c.weather_code,night);
+  $('nowIco').innerHTML=icoSvg(k);
+  $('temp').textContent=Math.round(c.temperature_2m)+'°';
+  $('desc').textContent=label;
+  $('fMinMax').textContent=`${Math.round(WX.daily.temperature_2m_min[0])}° / ${Math.round(WX.daily.temperature_2m_max[0])}°`;
+  $('fFeel').textContent=Math.round(c.apparent_temperature)+'°';
+  $('fRain').textContent=(WX.daily.precipitation_probability_max[0]??0)+'%';
+  $('fWind').textContent=Math.round(c.wind_speed_10m)+' km/h';
+  $('meta').innerHTML=`${S.city.name}<br>${sample?'esempio':'agg. '+pad(WX._at.getHours())+':'+pad(WX._at.getMinutes())}`;
+  renderChart(); renderSun(); applyMode();
+}
+function renderChart(){
+  const H=WX.hourly, now=new Date(); const pts=[];
+  for(let i=0;i<H.time.length&&pts.length<13;i++){const t=parseLocal(H.time[i]);if(t.getTime()>=now.getTime()-36e5)pts.push({t,v:H.temperature_2m[i],p:H.precipitation_probability[i]??0})}
+  if(pts.length<2){$('chart').innerHTML='';return}
+  const W=320,Ht=96,top=16,lineH=40,barTop=64,barH=16,x0=10,x1=W-10;
+  const vs=pts.map(p=>p.v),mn=Math.min(...vs),mx=Math.max(...vs),span=Math.max(mx-mn,2);
+  const X=i=>x0+(x1-x0)*i/(pts.length-1), Y=v=>top+lineH-(v-mn)/span*lineH;
+  let bars='',lbl='',dots='';
+  pts.forEach((p,i)=>{const h=p.p/100*barH;bars+=`<rect x="${(X(i)-5).toFixed(1)}" y="${(barTop+barH-h).toFixed(1)}" width="10" height="${h.toFixed(1)}" fill="var(--soft)" opacity="${p.p>0?.55:0}"/>`;
+    if(i%3===0){lbl+=`<text x="${X(i).toFixed(1)}" y="${Ht}" text-anchor="middle">${pad(p.t.getHours())}</text>`;
+      dots+=`<text x="${X(i).toFixed(1)}" y="${(Y(p.v)-7).toFixed(1)}" text-anchor="middle" fill="var(--ink)">${Math.round(p.v)}°</text>`}});
+  const line=pts.map((p,i)=>`${i?'L':'M'}${X(i).toFixed(1)} ${Y(p.v).toFixed(1)}`).join('');
+  const area=line+`L${X(pts.length-1).toFixed(1)} ${top+lineH} L${x0} ${top+lineH}Z`;
+  $('chart').innerHTML=`<div class="mono" style="margin-bottom:6px">Prossime 12 ore · barre = pioggia</div>
+  <svg viewBox="0 0 ${W} ${Ht+4}" preserveAspectRatio="xMinYMid meet" font-family="IBM Plex Mono, monospace" font-size="9" fill="var(--soft)">
+   <line x1="${x0}" x2="${x1}" y1="${barTop+barH}" y2="${barTop+barH}" stroke="var(--rule)"/>
+   <path d="${area}" fill="var(--fill)"/>
+   <path d="${line}" fill="none" stroke="var(--ink)" stroke-width="1.4" stroke-linejoin="round"/>
+   <circle cx="${X(0)}" cy="${Y(pts[0].v)}" r="3" fill="var(--ink)"/>
+   ${bars}${dots}${lbl}</svg>`;
+}
+function renderSun(){
+  if(!WX)return;
+  const sr=parseLocal(WX.daily.sunrise[0]),ss=parseLocal(WX.daily.sunset[0]),now=new Date();
+  const f=Math.min(1,Math.max(0,(now-sr)/(ss-sr))), up=now>=sr&&now<=ss;
+  const W=320,cx=W/2,r=120,by=60;
+  const a=Math.PI*(1-f),sx=cx+r*Math.cos(a),sy=by-r*Math.sin(a)*0.38;
+  const dl=ss-sr,dh=Math.floor(dl/36e5),dm=Math.round(dl%36e5/6e4);
+  $('sunarc').innerHTML=`<svg viewBox="0 0 ${W} 92" preserveAspectRatio="xMinYMid meet" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--soft)">
+   <path d="M${cx-r} ${by} Q ${cx} ${by-r*0.76} ${cx+r} ${by}" fill="none" stroke="var(--rule)" stroke-dasharray="2 4"/>
+   <line x1="${cx-r-14}" x2="${cx+r+14}" y1="${by}" y2="${by}" stroke="var(--rule)"/>
+   ${up?`<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="5" fill="var(--ink)"/>`:''}
+   <text x="${cx-r}" y="${by+18}" text-anchor="middle">↑ ${pad(sr.getHours())}:${pad(sr.getMinutes())}</text>
+   <text x="${cx+r}" y="${by+18}" text-anchor="middle">↓ ${pad(ss.getHours())}:${pad(ss.getMinutes())}</text>
+   <text x="${cx}" y="${by+18}" text-anchor="middle">${dh}h ${pad(dm)}m di luce</text></svg>`;
+}
+
+/* ---------- luna ---------- */
+function moon(){
+  const syn=29.530588853, ref=Date.UTC(2000,0,6,18,14);
+  const days=(Date.now()-ref)/864e5, p=((days%syn)+syn)%syn/syn;
+  const illum=(1-Math.cos(2*Math.PI*p))/2;
+  const names=[[.03,'Luna nuova'],[.22,'Luna crescente'],[.28,'Primo quarto'],[.47,'Gibbosa cresc.'],[.53,'Luna piena'],[.72,'Gibbosa cal.'],[.78,'Ultimo quarto'],[.97,'Luna calante'],[1.01,'Luna nuova']];
+  const name=names.find(n=>p<n[0])[1];
+  const R=13,c=15,waxing=p<.5,cres=p<.25||p>.75,rx=Math.abs(Math.cos(2*Math.PI*p))*R;
+  const os=waxing?1:0, ts=waxing?(cres?0:1):(cres?1:0);
+  const lit=`M${c} ${c-R} A${R} ${R} 0 0 ${os} ${c} ${c+R} A${rx.toFixed(2)} ${R} 0 0 ${ts} ${c} ${c-R}Z`;
+  $('moonSvg').innerHTML=`<circle cx="${c}" cy="${c}" r="${R}" fill="var(--fill)" stroke="var(--rule)"/>${illum>.01?`<path d="${lit}" fill="var(--ink)"/>`:''}`;
+  $('moonName').textContent=name; $('moonPct').textContent=Math.round(illum*100)+'% luce';
+}
+
+/* ---------- orologio e sveglia ---------- */
+function nextAlarm(from=new Date()){
+  if(snoozeUntil)return snoozeUntil;
+  if(!S.alarmOn)return null;
+  const [h,m]=S.alarm.split(':').map(Number);
+  for(let d=0;d<8;d++){const t=new Date(from);t.setDate(t.getDate()+d);t.setHours(h,m,0,0);
+    if(t<=from)continue; const wd=t.getDay(); if(S.days==='week'&&(wd===0||wd===6))continue; return t}
+  return null;
+}
+function tick(){
+  const now=new Date();
+  $('time').innerHTML=`${pad(now.getHours())}<span class="c">:</span>${pad(now.getMinutes())}`;
+  $('date').textContent=now.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'});
+  const na=nextAlarm(now), line=$('alarmLine');
+  if(na){const diff=na-now,h=Math.floor(diff/36e5),m=Math.floor(diff%36e5/6e4);
+    $('alarmText').textContent=`${snoozeUntil?'Posticipata':'Sveglia'} ${pad(na.getHours())}:${pad(na.getMinutes())} · tra ${h?h+'h ':''}${m}m`;line.classList.remove('off')}
+  else{$('alarmText').textContent='Sveglia spenta';line.classList.add('off')}
+  $('hint').hidden=!(na&&!audio);
+  // scatta?
+  const key=now.toDateString()+now.getHours()+':'+now.getMinutes();
+  const due=snoozeUntil?now>=snoozeUntil:(S.alarmOn&&`${pad(now.getHours())}:${pad(now.getMinutes())}`===S.alarm&&!(S.days==='week'&&(now.getDay()%6===0)));
+  if(due&&!ringing&&lastFired!==key){lastFired=key;snoozeUntil=null;startRing()}
+  return now;
+}
+let lastMin=-1;
+function loop(){
+  const now=tick();
+  if(now.getMinutes()!==lastMin){
+    lastMin=now.getMinutes();
+    const st=$('stage');st.style.transform=`translate(${Math.round(Math.random()*6-3)}px,${Math.round(Math.random()*6-3)}px)`;
+    renderSun(); applyMode(); moon();
+    if(now.getMinutes()===0&&!document.body.classList.contains('night')){const f=$('flash');f.classList.remove('go');void f.offsetWidth;f.classList.add('go')}
+    if(WX&&now-WX._at>30*6e4)loadWeather();
+    if(WX&&now.getMinutes()%10===0)renderChart();
+  }
+}
+function applyMode(){
+  const n=isNightNow();document.body.classList.toggle('night',n);document.body.classList.toggle('red',n&&S.red);
+}
+
+/* ---------- audio ---------- */
+function unlockAudio(){
+  if(!audio){try{audio=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}
+  if(audio&&audio.state==='suspended')audio.resume();
+  requestWake();
+}
+function chime(vol){
+  if(!audio)return; const t=audio.currentTime;
+  [523.25,659.25,783.99,1046.5].forEach((f,i)=>{const o=audio.createOscillator(),g=audio.createGain();
+    o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(0,t+i*.18);g.gain.linearRampToValueAtTime(vol,t+i*.18+.02);
+    g.gain.exponentialRampToValueAtTime(.0001,t+i*.18+1.4);o.connect(g).connect(audio.destination);o.start(t+i*.18);o.stop(t+i*.18+1.5)});
+}
+function startRing(){
+  ringing=true;const now=new Date();$('ringTime').textContent=`${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  $('ringWx').textContent=WX?`${wmo(WX.current.weather_code,false)[1]}, ${Math.round(WX.current.temperature_2m)}° · massima ${Math.round(WX.daily.temperature_2m_max[0])}°`:'';
+  $('ring').hidden=false;document.body.classList.add('ringing');
+  const t0=Date.now();const go=()=>{chime(Math.min(.5,.06+(Date.now()-t0)/90000))};go();ringTimer=setInterval(go,2600);
+}
+function stopRing(){ringing=false;clearInterval(ringTimer);$('ring').hidden=true;document.body.classList.remove('ringing')}
+
+/* ---------- wake lock ---------- */
+let wake=null;
+async function requestWake(){try{if('wakeLock' in navigator&&!wake){wake=await navigator.wakeLock.request('screen');wake.addEventListener('release',()=>wake=null)}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){requestWake();tick()}});
+
+/* ---------- impostazioni ---------- */
+function seg(id,val,cb){const el=$(id);const paint=v=>el.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===String(v)));
+  paint(val);el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;paint(b.dataset.v);cb(b.dataset.v)})}
+seg('alarmOn',S.alarmOn?1:0,v=>{S.alarmOn=v==='1';store.set('alarmOn',S.alarmOn);snoozeUntil=null;tick()});
+seg('alarmDays',S.days,v=>{S.days=v;store.set('days',v);tick()});
+seg('nightMode',S.night,v=>{S.night=v;store.set('night',v);applyMode()});
+seg('redMode',S.red?1:0,v=>{S.red=v==='1';store.set('red',S.red);applyMode()});
+$('alarmTime').value=S.alarm;
+$('alarmTime').addEventListener('change',e=>{if(!e.target.value)return;S.alarm=e.target.value;store.set('alarm',S.alarm);S.alarmOn=true;store.set('alarmOn',true);
+  $('alarmOn').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v==='1'));snoozeUntil=null;tick()});
+$('city').value=S.city.name;
+async function findCity(){
+  const q=$('city').value.trim();if(!q)return;$('cityNote').textContent='Cerco…';
+  try{const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=it`);const j=await r.json();
+    if(!j.results||!j.results.length){$('cityNote').textContent=`Non trovo “${q}”. Prova col nome della città senza provincia.`;return}
+    const g=j.results[0];S.city={name:g.name,lat:g.latitude,lon:g.longitude};store.set('city',S.city);
+    $('cityNote').textContent=`Impostata: ${g.name}${g.admin1?', '+g.admin1:''}.`;loadWeather();
+  }catch(e){$('cityNote').textContent='Ricerca non riuscita: serve la connessione a internet.'}
+}
+$('findCity').onclick=findCity;$('city').addEventListener('keydown',e=>{if(e.key==='Enter')findCity()});
+$('testAlarm').onclick=()=>{unlockAudio();chime(.35)};
+$('fs').onclick=async()=>{try{await document.documentElement.requestFullscreen()}catch(e){}};
+$('gear').onclick=()=>{unlockAudio();$('sheet').hidden=false};
+$('alarmLine').onclick=()=>{unlockAudio();$('sheet').hidden=false};
+$('close').onclick=()=>{$('sheet').hidden=true;tick()};
+$('time').onclick=()=>{unlockAudio();const n=document.body.classList.contains('night');S.night=n?'off':'on';
+  // il tocco forza la modalità fino al prossimo cambio luce
+  applyMode();setTimeout(()=>{},0);document.querySelectorAll('#nightMode button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S.night))};
+$('stop').onclick=()=>{stopRing();tick()};
+$('snooze').onclick=()=>{stopRing();snoozeUntil=new Date(Date.now()+9*6e4);tick()};
+document.addEventListener('pointerdown',unlockAudio,{once:false,passive:true});
+
+/* ---------- avvio ---------- */
+moon();loop();setInterval(loop,1000);
+WX=null;applyMode();loadWeather();
+if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
+try{screen.orientation&&screen.orientation.lock&&document.addEventListener('fullscreenchange',()=>{if(document.fullscreenElement)screen.orientation.lock('landscape').catch(()=>{})})}catch(e){}
+</script>
+</body>
+</html>
